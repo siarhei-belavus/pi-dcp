@@ -1,39 +1,39 @@
-import type { AgentMessage } from '@mariozechner/pi-agent-core'
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type {
   DCPConfig,
   DCPMessageProtection,
   DCPProtectionPolicy,
-} from './types'
-import { buildProtectionIndex } from './frontier'
-import { buildAgeModel, buildToolCallIndex } from './utils'
+} from "./types";
+import { buildProtectionIndex } from "./frontier";
+import { buildAgeModel, buildToolCallIndex } from "./utils";
 
 export function createProtectionPolicy(
   messages: AgentMessage[],
   config: DCPConfig,
   ageModel = buildAgeModel(messages),
   toolArgsIndex = buildToolCallIndex(messages),
-  cwd = process.cwd()
+  cwd = process.cwd(),
 ): DCPProtectionPolicy {
   const stepProtectionActive =
-    config.stepProtection.enabled && config.stepProtection.steps > 0
+    config.stepProtection.enabled && config.stepProtection.steps > 0;
   const turnProtectionActive =
-    config.turnProtection.enabled && config.turnProtection.turns > 0
+    config.turnProtection.enabled && config.turnProtection.turns > 0;
   const currentTurnStepCount = ageModel.steps.reduce(
     (count, step) =>
       (ageModel.turnAges[step.start] ?? -1) === 0 ? count + 1 : count,
-    0
-  )
+    0,
+  );
   const stepProtectionEngagedForCurrentTurn =
     stepProtectionActive &&
     (!turnProtectionActive ||
-      currentTurnStepCount > config.turnProtection.turns)
+      currentTurnStepCount > config.turnProtection.turns);
   const protectionIndex = buildProtectionIndex(
     messages,
     config,
     ageModel,
     toolArgsIndex,
-    cwd
-  )
+    cwd,
+  );
 
   return {
     turnAges: ageModel.turnAges,
@@ -44,31 +44,31 @@ export function createProtectionPolicy(
       return protectionIndex.pinnedItems.map((item) => ({
         ...item,
         reasons: [...item.reasons],
-      }))
+      }));
     },
     get(index, options) {
-      const message = messages[index]
-      const turnAge = ageModel.turnAges[index] ?? -1
-      const stepAge = ageModel.stepAges[index] ?? -1
-      const currentTurnExecution = turnAge === 0 && stepAge >= 0
+      const message = messages[index];
+      const turnAge = ageModel.turnAges[index] ?? -1;
+      const stepAge = ageModel.stepAges[index] ?? -1;
+      const currentTurnExecution = turnAge === 0 && stepAge >= 0;
       const usesStepWindowForCurrentTurnExecution =
-        stepProtectionEngagedForCurrentTurn && currentTurnExecution
+        stepProtectionEngagedForCurrentTurn && currentTurnExecution;
 
       const viaTurnWindow =
         turnProtectionActive &&
         turnAge >= 0 &&
         turnAge < config.turnProtection.turns &&
-        !usesStepWindowForCurrentTurnExecution
+        !usesStepWindowForCurrentTurnExecution;
       const viaStepWindow =
         stepProtectionActive &&
         currentTurnExecution &&
         stepAge >= 0 &&
         stepAge < config.stepProtection.steps &&
-        usesStepWindowForCurrentTurnExecution
+        usesStepWindowForCurrentTurnExecution;
 
-      const subjectKey = resolveSubjectKey(message, options)
+      const subjectKey = resolveSubjectKey(message, options);
       const subjectProtection =
-        subjectKey !== null ? protectionIndex.get(subjectKey) : undefined
+        subjectKey !== null ? protectionIndex.get(subjectKey) : undefined;
 
       return {
         protected:
@@ -77,7 +77,7 @@ export function createProtectionPolicy(
           Boolean(
             subjectProtection?.viaToolProtection ||
             subjectProtection?.viaFileProtection ||
-            subjectProtection?.viaFrontierPin
+            subjectProtection?.viaFrontierPin,
           ),
         viaTurnWindow,
         viaStepWindow,
@@ -88,54 +88,54 @@ export function createProtectionPolicy(
         turnAge,
         stepAge,
         currentTurnExecution,
-      } satisfies DCPMessageProtection
+      } satisfies DCPMessageProtection;
     },
-  }
+  };
 }
 
 function resolveSubjectKey(
   message: AgentMessage | undefined,
-  options?: { toolName?: string; toolCallId?: string; toolArgs?: any }
+  options?: { toolName?: string; toolCallId?: string; toolArgs?: any },
 ): string | null {
-  if (typeof options?.toolCallId === 'string') {
-    return message?.role === 'toolResult'
+  if (typeof options?.toolCallId === "string") {
+    return message?.role === "toolResult"
       ? `toolResult:${options.toolCallId}`
-      : `toolCall:${options.toolCallId}`
+      : `toolCall:${options.toolCallId}`;
   }
 
   if (!message) {
-    return null
+    return null;
   }
 
-  if (message.role === 'toolResult' && typeof message.toolCallId === 'string') {
-    return `toolResult:${message.toolCallId}`
+  if (message.role === "toolResult" && typeof message.toolCallId === "string") {
+    return `toolResult:${message.toolCallId}`;
   }
 
-  if (message.role !== 'assistant') {
-    return null
+  if (message.role !== "assistant") {
+    return null;
   }
 
   const matchingBlocks = message.content.filter(
     (
-      block
+      block,
     ): block is Extract<
       (typeof message.content)[number],
-      { type: 'toolCall' }
-    > => block.type === 'toolCall' && typeof block.id === 'string'
-  )
+      { type: "toolCall" }
+    > => block.type === "toolCall" && typeof block.id === "string",
+  );
 
   if (matchingBlocks.length === 1) {
-    return `toolCall:${matchingBlocks[0].id}`
+    return `toolCall:${matchingBlocks[0].id}`;
   }
 
-  if (typeof options?.toolName === 'string') {
+  if (typeof options?.toolName === "string") {
     const matchingBlock = matchingBlocks.find(
-      (block) => block.type === 'toolCall' && block.name === options.toolName
-    )
-    if (matchingBlock?.type === 'toolCall') {
-      return `toolCall:${matchingBlock.id}`
+      (block) => block.type === "toolCall" && block.name === options.toolName,
+    );
+    if (matchingBlock?.type === "toolCall") {
+      return `toolCall:${matchingBlock.id}`;
     }
   }
 
-  return null
+  return null;
 }

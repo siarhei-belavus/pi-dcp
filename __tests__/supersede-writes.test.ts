@@ -1,15 +1,15 @@
-import { test, expect } from 'bun:test'
-import { applySupersedeWrites } from '../strategies/supersede-writes'
-import type { AgentMessage } from '@mariozechner/pi-agent-core'
-import type { DCPConfig } from '../types'
-import { createSessionState } from '../state'
-import { createProtectionPolicy } from '../protection'
-import { buildToolCallIndex } from '../utils'
+import { test, expect } from "bun:test";
+import { applySupersedeWrites } from "../strategies/supersede-writes";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { DCPConfig } from "../types";
+import { createSessionState } from "../state";
+import { createProtectionPolicy } from "../protection";
+import { buildToolCallIndex } from "../utils";
 
 function mockConfig(): DCPConfig {
   return {
     enabled: true,
-    mode: 'safe',
+    mode: "safe",
     debug: false,
     turnProtection: { enabled: false, turns: 0 },
     stepProtection: { enabled: false, steps: 0 },
@@ -27,32 +27,32 @@ function mockConfig(): DCPConfig {
       compressTool: { enabled: false },
       llmAutonomy: false,
     },
-  }
+  };
 }
 
-test('applySupersedeWrites prunes write arguments if superseded by later read', () => {
+test("applySupersedeWrites prunes write arguments if superseded by later read", () => {
   const messages: AgentMessage[] = [
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'write_1',
-          name: 'write',
-          arguments: { path: 'a.txt', content: 'huge string' },
+          type: "toolCall",
+          id: "write_1",
+          name: "write",
+          arguments: { path: "a.txt", content: "huge string" },
         },
       ],
-      api: '',
-      provider: '',
-      model: '',
+      api: "",
+      provider: "",
+      model: "",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 1,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'write_1',
-      toolName: 'write',
+      role: "toolResult",
+      toolCallId: "write_1",
+      toolName: "write",
       content: [],
       isError: false,
       timestamp: 2,
@@ -61,69 +61,69 @@ test('applySupersedeWrites prunes write arguments if superseded by later read', 
     // Some time passes...
 
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'read_1',
-          name: 'read',
-          arguments: { path: 'a.txt' },
+          type: "toolCall",
+          id: "read_1",
+          name: "read",
+          arguments: { path: "a.txt" },
         },
       ],
-      api: '',
-      provider: '',
-      model: '',
+      api: "",
+      provider: "",
+      model: "",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 3,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'read_1',
-      toolName: 'read',
+      role: "toolResult",
+      toolCallId: "read_1",
+      toolName: "read",
       content: [],
       isError: false,
       timestamp: 4,
     },
-  ]
+  ];
 
-  const config = mockConfig()
-  const state = createSessionState()
-  const index = buildToolCallIndex(messages)
-  const policy = createProtectionPolicy(messages, config)
+  const config = mockConfig();
+  const state = createSessionState();
+  const index = buildToolCallIndex(messages);
+  const policy = createProtectionPolicy(messages, config);
 
-  applySupersedeWrites(messages, config, state, index, policy)
+  applySupersedeWrites(messages, config, state, index, policy);
 
   // The write should be pruned
   expect((messages[0] as any).content[0].arguments.content).toBe(
-    '[DCP: Content superseded by later read]'
-  )
-  expect(state.stats.prunedItemsCount.supersedeWrites).toBe(1)
-})
+    "[DCP: Content superseded by later read]",
+  );
+  expect(state.stats.prunedItemsCount.supersedeWrites).toBe(1);
+});
 
-test('applySupersedeWrites does NOT prune writes if no later read exists', () => {
+test("applySupersedeWrites does NOT prune writes if no later read exists", () => {
   const messages: AgentMessage[] = [
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'write_1',
-          name: 'write',
-          arguments: { path: 'b.txt', content: 'huge string' },
+          type: "toolCall",
+          id: "write_1",
+          name: "write",
+          arguments: { path: "b.txt", content: "huge string" },
         },
       ],
-      api: '',
-      provider: '',
-      model: '',
+      api: "",
+      provider: "",
+      model: "",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 1,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'write_1',
-      toolName: 'write',
+      role: "toolResult",
+      toolCallId: "write_1",
+      toolName: "write",
       content: [],
       isError: false,
       timestamp: 2,
@@ -131,40 +131,40 @@ test('applySupersedeWrites does NOT prune writes if no later read exists', () =>
 
     // Different file read
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'read_1',
-          name: 'read',
-          arguments: { path: 'c.txt' },
+          type: "toolCall",
+          id: "read_1",
+          name: "read",
+          arguments: { path: "c.txt" },
         },
       ],
-      api: '',
-      provider: '',
-      model: '',
+      api: "",
+      provider: "",
+      model: "",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 3,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'read_1',
-      toolName: 'read',
+      role: "toolResult",
+      toolCallId: "read_1",
+      toolName: "read",
       content: [],
       isError: false,
       timestamp: 4,
     },
-  ]
+  ];
 
-  const config = mockConfig()
-  const state = createSessionState()
-  const index = buildToolCallIndex(messages)
-  const policy = createProtectionPolicy(messages, config)
+  const config = mockConfig();
+  const state = createSessionState();
+  const index = buildToolCallIndex(messages);
+  const policy = createProtectionPolicy(messages, config);
 
-  applySupersedeWrites(messages, config, state, index, policy)
+  applySupersedeWrites(messages, config, state, index, policy);
 
   // The write should be kept intact
-  expect((messages[0] as any).content[0].arguments.content).toBe('huge string')
-  expect(state.stats.prunedItemsCount.supersedeWrites).toBe(0)
-})
+  expect((messages[0] as any).content[0].arguments.content).toBe("huge string");
+  expect(state.stats.prunedItemsCount.supersedeWrites).toBe(0);
+});

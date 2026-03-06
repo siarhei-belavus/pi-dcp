@@ -95,40 +95,40 @@ Minimal example:
   "mode": "safe",
   "turnProtection": {
     "enabled": true,
-    "turns": 8
+    "turns": 8,
   },
   "stepProtection": {
     "enabled": true,
-    "steps": 2
+    "steps": 2,
   },
   "thresholds": {
     "nudge": 0.7,
     "autoPrune": 0.8,
-    "forceCompact": 0.9
+    "forceCompact": 0.9,
   },
   "protectedTools": [
     "todo",
     "subagent",
     "send_to_session",
     "plan_enter",
-    "plan_exit"
+    "plan_exit",
   ],
   "protectedFilePatterns": [
     "**/CHANGELOG.md",
     "**/*.plan.md",
-    "**/progress.md"
+    "**/progress.md",
   ],
   "strategies": {
     "deduplicate": { "enabled": true },
     "purgeErrors": { "enabled": true, "minTurnAge": 3 },
     "outputBodyReplace": { "enabled": true, "minChars": 1200 },
-    "supersedeWrites": { "enabled": false }
+    "supersedeWrites": { "enabled": false },
   },
   "advanced": {
     "distillTool": { "enabled": false },
     "compressTool": { "enabled": false },
-    "llmAutonomy": false
-  }
+    "llmAutonomy": false,
+  },
 }
 ```
 

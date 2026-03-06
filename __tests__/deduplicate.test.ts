@@ -1,25 +1,25 @@
-import { test, expect } from 'bun:test'
+import { test, expect } from "bun:test";
 import {
   computeTurnAges,
   buildToolCallIndex,
   getToolSignature,
   getToolSignatureCacheEntryCountForTests,
-} from '../utils'
-import { createProtectionPolicy } from '../protection'
-import { applyDeduplicate } from '../strategies/deduplicate'
-import type { AgentMessage } from '@mariozechner/pi-agent-core'
-import type { DCPConfig } from '../types'
-import { createSessionState } from '../state'
+} from "../utils";
+import { createProtectionPolicy } from "../protection";
+import { applyDeduplicate } from "../strategies/deduplicate";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { DCPConfig } from "../types";
+import { createSessionState } from "../state";
 
 function mockConfig(): DCPConfig {
   return {
     enabled: true,
-    mode: 'safe',
+    mode: "safe",
     debug: false,
     turnProtection: { enabled: true, turns: 2 }, // Only protect the last 2 turns
     stepProtection: { enabled: true, steps: 2 },
     thresholds: { nudge: 0.7, autoPrune: 0.8, forceCompact: 0.9 },
-    protectedTools: ['todo'],
+    protectedTools: ["todo"],
     protectedFilePatterns: [],
     strategies: {
       deduplicate: { enabled: true },
@@ -32,267 +32,267 @@ function mockConfig(): DCPConfig {
       compressTool: { enabled: false },
       llmAutonomy: false,
     },
-  }
+  };
 }
 
-test('computeTurnAges assigns 0 to the last user turn and increments backwards', () => {
+test("computeTurnAges assigns 0 to the last user turn and increments backwards", () => {
   const messages: AgentMessage[] = [
-    { role: 'user', content: 'first', timestamp: 1 } as any, // Turn age: 2
+    { role: "user", content: "first", timestamp: 1 } as any, // Turn age: 2
     {
-      role: 'assistant',
+      role: "assistant",
       content: [],
-      api: 'test',
-      provider: 'test',
-      model: 'test',
+      api: "test",
+      provider: "test",
+      model: "test",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 2,
     }, // Turn age: 1
-    { role: 'user', content: 'second', timestamp: 3 } as any, // Turn age: 1
+    { role: "user", content: "second", timestamp: 3 } as any, // Turn age: 1
     {
-      role: 'assistant',
+      role: "assistant",
       content: [],
-      api: 'test',
-      provider: 'test',
-      model: 'test',
+      api: "test",
+      provider: "test",
+      model: "test",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 4,
     }, // Turn age: 0
-    { role: 'user', content: 'third', timestamp: 5 } as any, // Turn age: 0
-  ]
+    { role: "user", content: "third", timestamp: 5 } as any, // Turn age: 0
+  ];
 
-  const ages = computeTurnAges(messages)
-  expect(ages).toEqual([2, 2, 1, 1, 0])
-})
+  const ages = computeTurnAges(messages);
+  expect(ages).toEqual([2, 2, 1, 1, 0]);
+});
 
-test('buildToolCallIndex and signature hashing do not leak stale args across reused toolCallIds', () => {
+test("buildToolCallIndex and signature hashing do not leak stale args across reused toolCallIds", () => {
   const firstMessages: AgentMessage[] = [
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'shared_call',
-          name: 'read',
-          arguments: { path: 'a.txt' },
+          type: "toolCall",
+          id: "shared_call",
+          name: "read",
+          arguments: { path: "a.txt" },
         },
       ],
-      api: 't',
-      provider: 't',
-      model: 't',
+      api: "t",
+      provider: "t",
+      model: "t",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 1,
     },
-  ]
+  ];
   const secondMessages: AgentMessage[] = [
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'shared_call',
-          name: 'read',
-          arguments: { path: 'b.txt' },
+          type: "toolCall",
+          id: "shared_call",
+          name: "read",
+          arguments: { path: "b.txt" },
         },
       ],
-      api: 't',
-      provider: 't',
-      model: 't',
+      api: "t",
+      provider: "t",
+      model: "t",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 2,
     },
-  ]
+  ];
 
-  const firstIndex = buildToolCallIndex(firstMessages)
-  const secondIndex = buildToolCallIndex(secondMessages)
+  const firstIndex = buildToolCallIndex(firstMessages);
+  const secondIndex = buildToolCallIndex(secondMessages);
 
   const firstSig = getToolSignature(
-    'read',
-    firstIndex.get('shared_call'),
-    'shared_call'
-  )
+    "read",
+    firstIndex.get("shared_call"),
+    "shared_call",
+  );
   const secondSig = getToolSignature(
-    'read',
-    secondIndex.get('shared_call'),
-    'shared_call'
-  )
+    "read",
+    secondIndex.get("shared_call"),
+    "shared_call",
+  );
 
-  expect(firstSig).not.toBe(secondSig)
-})
+  expect(firstSig).not.toBe(secondSig);
+});
 
-test('getToolSignature does not retain raw payloads in a process-global cache', () => {
-  const entriesBefore = getToolSignatureCacheEntryCountForTests()
+test("getToolSignature does not retain raw payloads in a process-global cache", () => {
+  const entriesBefore = getToolSignatureCacheEntryCountForTests();
   const largeArgs = {
-    path: 'a.txt',
-    content: 'x'.repeat(20_000),
-  }
+    path: "a.txt",
+    content: "x".repeat(20_000),
+  };
 
-  const firstSig = getToolSignature('write', largeArgs, 'call_1')
-  const secondSig = getToolSignature('write', largeArgs, 'call_2')
+  const firstSig = getToolSignature("write", largeArgs, "call_1");
+  const secondSig = getToolSignature("write", largeArgs, "call_2");
 
-  expect(firstSig).toBe(secondSig)
-  expect(getToolSignatureCacheEntryCountForTests()).toBe(entriesBefore)
-})
+  expect(firstSig).toBe(secondSig);
+  expect(getToolSignatureCacheEntryCountForTests()).toBe(entriesBefore);
+});
 
-test('applyDeduplicate prunes older duplicate non-protected tools', () => {
+test("applyDeduplicate prunes older duplicate non-protected tools", () => {
   const messages: AgentMessage[] = [
-    { role: 'user', content: 't1', timestamp: 1 } as any,
+    { role: "user", content: "t1", timestamp: 1 } as any,
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'call_1',
-          name: 'read',
-          arguments: { path: 'a.txt' },
+          type: "toolCall",
+          id: "call_1",
+          name: "read",
+          arguments: { path: "a.txt" },
         },
       ],
-      api: 't',
-      provider: 't',
-      model: 't',
+      api: "t",
+      provider: "t",
+      model: "t",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 2,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'call_1',
-      toolName: 'read',
-      content: [{ type: 'text', text: 'long old text' }],
+      role: "toolResult",
+      toolCallId: "call_1",
+      toolName: "read",
+      content: [{ type: "text", text: "long old text" }],
       isError: false,
       timestamp: 3,
     },
 
     // some other turns to age out call_1
-    { role: 'user', content: 't2', timestamp: 4 } as any,
-    { role: 'user', content: 't3', timestamp: 5 } as any,
-    { role: 'user', content: 't4', timestamp: 6 } as any,
+    { role: "user", content: "t2", timestamp: 4 } as any,
+    { role: "user", content: "t3", timestamp: 5 } as any,
+    { role: "user", content: "t4", timestamp: 6 } as any,
 
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'call_2',
-          name: 'read',
-          arguments: { path: 'a.txt' },
+          type: "toolCall",
+          id: "call_2",
+          name: "read",
+          arguments: { path: "a.txt" },
         },
       ],
-      api: 't',
-      provider: 't',
-      model: 't',
+      api: "t",
+      provider: "t",
+      model: "t",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 7,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'call_2',
-      toolName: 'read',
-      content: [{ type: 'text', text: 'long new text' }],
+      role: "toolResult",
+      toolCallId: "call_2",
+      toolName: "read",
+      content: [{ type: "text", text: "long new text" }],
       isError: false,
       timestamp: 8,
     },
-  ]
+  ];
 
-  const config = mockConfig()
-  const state = createSessionState()
-  const index = buildToolCallIndex(messages)
-  const policy = createProtectionPolicy(messages, config)
+  const config = mockConfig();
+  const state = createSessionState();
+  const index = buildToolCallIndex(messages);
+  const policy = createProtectionPolicy(messages, config);
 
-  applyDeduplicate(messages, config, state, index, policy)
+  applyDeduplicate(messages, config, state, index, policy);
 
   // call_2 is recent, so it should be kept
   expect((messages[7] as any).content).toEqual([
-    { type: 'text', text: 'long new text' },
-  ])
+    { type: "text", text: "long new text" },
+  ]);
 
   // call_1 is an exact duplicate and is aged out (turn age 3), so it should be pruned
   expect((messages[2] as any).content).toEqual([
     {
-      type: 'text',
-      text: '[DCP: Exact duplicate of a later tool call. Pruned to save tokens.]',
+      type: "text",
+      text: "[DCP: Exact duplicate of a later tool call. Pruned to save tokens.]",
     },
-  ])
-  expect(state.stats.prunedItemsCount.deduplicate).toBe(1)
-})
+  ]);
+  expect(state.stats.prunedItemsCount.deduplicate).toBe(1);
+});
 
-test('applyDeduplicate does NOT prune protected tools', () => {
+test("applyDeduplicate does NOT prune protected tools", () => {
   const messages: AgentMessage[] = [
-    { role: 'user', content: 't1', timestamp: 1 } as any,
+    { role: "user", content: "t1", timestamp: 1 } as any,
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'call_1',
-          name: 'todo',
-          arguments: { action: 'list' },
+          type: "toolCall",
+          id: "call_1",
+          name: "todo",
+          arguments: { action: "list" },
         },
       ],
-      api: 't',
-      provider: 't',
-      model: 't',
+      api: "t",
+      provider: "t",
+      model: "t",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 2,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'call_1',
-      toolName: 'todo',
-      content: [{ type: 'text', text: 'old list' }],
+      role: "toolResult",
+      toolCallId: "call_1",
+      toolName: "todo",
+      content: [{ type: "text", text: "old list" }],
       isError: false,
       timestamp: 3,
     },
 
-    { role: 'user', content: 't2', timestamp: 4 } as any,
-    { role: 'user', content: 't3', timestamp: 5 } as any,
-    { role: 'user', content: 't4', timestamp: 6 } as any,
+    { role: "user", content: "t2", timestamp: 4 } as any,
+    { role: "user", content: "t3", timestamp: 5 } as any,
+    { role: "user", content: "t4", timestamp: 6 } as any,
 
     {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'call_2',
-          name: 'todo',
-          arguments: { action: 'list' },
+          type: "toolCall",
+          id: "call_2",
+          name: "todo",
+          arguments: { action: "list" },
         },
       ],
-      api: 't',
-      provider: 't',
-      model: 't',
+      api: "t",
+      provider: "t",
+      model: "t",
       usage: {} as any,
-      stopReason: 'stop',
+      stopReason: "stop",
       timestamp: 7,
     },
     {
-      role: 'toolResult',
-      toolCallId: 'call_2',
-      toolName: 'todo',
-      content: [{ type: 'text', text: 'new list' }],
+      role: "toolResult",
+      toolCallId: "call_2",
+      toolName: "todo",
+      content: [{ type: "text", text: "new list" }],
       isError: false,
       timestamp: 8,
     },
-  ]
+  ];
 
-  const config = mockConfig()
-  const state = createSessionState()
-  const index = buildToolCallIndex(messages)
-  const policy = createProtectionPolicy(messages, config)
+  const config = mockConfig();
+  const state = createSessionState();
+  const index = buildToolCallIndex(messages);
+  const policy = createProtectionPolicy(messages, config);
 
-  applyDeduplicate(messages, config, state, index, policy)
+  applyDeduplicate(messages, config, state, index, policy);
 
   // Both should be kept because 'todo' is protected
   expect((messages[2] as any).content).toEqual([
-    { type: 'text', text: 'old list' },
-  ])
+    { type: "text", text: "old list" },
+  ]);
   expect((messages[7] as any).content).toEqual([
-    { type: 'text', text: 'new list' },
-  ])
-  expect(state.stats.protectedSkipCount).toBe(2)
-})
+    { type: "text", text: "new list" },
+  ]);
+  expect(state.stats.protectedSkipCount).toBe(2);
+});

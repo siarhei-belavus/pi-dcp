@@ -1,24 +1,24 @@
-import type { AgentMessage } from '@mariozechner/pi-agent-core'
-import type { DCPConfig, DCPSessionState, DCPProtectionPolicy } from '../types'
-import { estimateTokens } from '../utils'
-import { recordStrategyPruned, recordStrategySkip } from '../observability'
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { DCPConfig, DCPSessionState, DCPProtectionPolicy } from "../types";
+import { estimateTokens } from "../utils";
+import { recordStrategyPruned, recordStrategySkip } from "../observability";
 
 export function applyPurgeErrors(
   messages: AgentMessage[],
   config: DCPConfig,
   state: DCPSessionState,
-  protectionPolicy: DCPProtectionPolicy
+  protectionPolicy: DCPProtectionPolicy,
 ): void {
-  if (!config.strategies.purgeErrors.enabled) return
+  if (!config.strategies.purgeErrors.enabled) return;
 
-  const minTurnAge = config.strategies.purgeErrors.minTurnAge
+  const minTurnAge = config.strategies.purgeErrors.minTurnAge;
 
   for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i]
+    const msg = messages[i];
 
-    if (msg.role === 'toolResult' && msg.isError) {
-      const protection = protectionPolicy.get(i)
-      const turnAge = protection.turnAge
+    if (msg.role === "toolResult" && msg.isError) {
+      const protection = protectionPolicy.get(i);
+      const turnAge = protection.turnAge;
 
       if (
         protection.viaToolProtection ||
@@ -27,63 +27,63 @@ export function applyPurgeErrors(
       ) {
         recordStrategySkip(
           state,
-          'purgeErrors',
-          'protected',
-          `toolResult:${msg.toolCallId}`
-        )
-        continue
+          "purgeErrors",
+          "protected",
+          `toolResult:${msg.toolCallId}`,
+        );
+        continue;
       }
 
       if (protection.protected) {
-        recordStrategySkip(state, 'purgeErrors', 'recent')
-        continue
+        recordStrategySkip(state, "purgeErrors", "recent");
+        continue;
       }
 
       if (turnAge < minTurnAge) {
-        recordStrategySkip(state, 'purgeErrors', 'recent')
-        continue
+        recordStrategySkip(state, "purgeErrors", "recent");
+        continue;
       }
 
       // Check if it's already a DCP placeholder
       if (
         msg.content.length === 1 &&
-        msg.content[0].type === 'text' &&
-        msg.content[0].text.startsWith('[DCP:')
+        msg.content[0].type === "text" &&
+        msg.content[0].text.startsWith("[DCP:")
       ) {
-        recordStrategySkip(state, 'purgeErrors', 'other')
-        continue
+        recordStrategySkip(state, "purgeErrors", "other");
+        continue;
       }
 
-      const tokensSaved = estimateTokens(msg.content)
-      state.stats.tokensSavedEstimate += tokensSaved
-      state.stats.prunedItemsCount.purgeErrors++
-      recordStrategyPruned(state, 'purgeErrors')
+      const tokensSaved = estimateTokens(msg.content);
+      state.stats.tokensSavedEstimate += tokensSaved;
+      state.stats.prunedItemsCount.purgeErrors++;
+      recordStrategyPruned(state, "purgeErrors");
 
       // We preserve the first line or up to 200 chars to keep the error identity
-      let summary = ''
+      let summary = "";
       for (const block of msg.content) {
-        if (block.type === 'text') {
-          summary += block.text
-          if (summary.length > 200) break
+        if (block.type === "text") {
+          summary += block.text;
+          if (summary.length > 200) break;
         }
       }
 
-      const firstLine = summary.split('\n')[0].slice(0, 150)
+      const firstLine = summary.split("\n")[0].slice(0, 150);
 
       state.details.push({
-        strategy: 'purgeErrors',
+        strategy: "purgeErrors",
         toolName: msg.toolName,
         turnAge,
         tokensSaved,
         argsSummary: firstLine,
-      })
+      });
 
       msg.content = [
         {
-          type: 'text',
+          type: "text",
           text: `[DCP: Stale error payload minimized.]\n${firstLine}...`,
         },
-      ]
+      ];
     }
   }
 }

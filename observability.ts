@@ -9,33 +9,33 @@ import type {
   DCPStrategyDecisionSummary,
   DCPStrategyName,
   DCPSessionState,
-} from './types'
+} from "./types";
 import {
   describeEffectivePressureBand,
   getEffectivePressureBand,
   getStrategyMinimumBand,
   isStrategyEnabledForPressure,
-} from './pressure-policy'
+} from "./pressure-policy";
 
 const STRATEGY_NAMES: DCPStrategyName[] = [
-  'deduplicate',
-  'purgeErrors',
-  'outputBodyReplace',
-  'supersedeWrites',
-]
+  "deduplicate",
+  "purgeErrors",
+  "outputBodyReplace",
+  "supersedeWrites",
+];
 
 export function createObservabilityState(
   config?: DCPConfig,
   protectionPolicy?: DCPProtectionPolicy,
-  usage?: { tokens?: number | null; contextWindow?: number | null } | null
+  usage?: { tokens?: number | null; contextWindow?: number | null } | null,
 ): DCPObservabilityState {
   if (!config) {
     return {
-      mode: 'safe',
+      mode: "safe",
       pressure: {
-        band: 'unknown',
-        effectiveBand: 'low',
-        sampledAt: 'pre-prune',
+        band: "unknown",
+        effectiveBand: "low",
+        sampledAt: "pre-prune",
         tokens: null,
         contextWindow: null,
         usageRatio: null,
@@ -45,7 +45,7 @@ export function createObservabilityState(
           forceCompact: 0,
         },
         meaning:
-          'baseline safe wins active; ctx.getContextUsage unavailable so large-output pruning stays off',
+          "baseline safe wins active; ctx.getContextUsage unavailable so large-output pruning stays off",
         compactionPreferred: false,
       },
       protection: {
@@ -57,7 +57,7 @@ export function createObservabilityState(
           enabled: false,
           steps: 0,
           active: false,
-          note: 'disabled',
+          note: "disabled",
         },
         protectedToolsCount: 0,
         protectedFilePatterns: {
@@ -82,10 +82,10 @@ export function createObservabilityState(
       },
       strategyDecisions: createStrategyDecisions(),
       pinnedItems: [],
-    }
+    };
   }
 
-  const pressure = computePressureState(config, usage)
+  const pressure = computePressureState(config, usage);
 
   return {
     mode: config.mode,
@@ -95,294 +95,294 @@ export function createObservabilityState(
     configActivation: describeConfigActivation(config),
     strategyDecisions: createStrategyDecisions(config, pressure),
     pinnedItems: protectionPolicy?.listPinnedItems() ?? [],
-  }
+  };
 }
 
 export function computePressureState(
   config: DCPConfig,
-  usage?: { tokens?: number | null; contextWindow?: number | null } | null
+  usage?: { tokens?: number | null; contextWindow?: number | null } | null,
 ): DCPPressureState {
-  const tokens = typeof usage?.tokens === 'number' ? usage.tokens : null
+  const tokens = typeof usage?.tokens === "number" ? usage.tokens : null;
   const contextWindow =
-    typeof usage?.contextWindow === 'number' && usage.contextWindow > 0
+    typeof usage?.contextWindow === "number" && usage.contextWindow > 0
       ? usage.contextWindow
-      : null
+      : null;
   const usageRatio =
-    tokens !== null && contextWindow !== null ? tokens / contextWindow : null
+    tokens !== null && contextWindow !== null ? tokens / contextWindow : null;
 
-  let band: DCPPressureState['band'] = 'unknown'
+  let band: DCPPressureState["band"] = "unknown";
   if (usageRatio !== null) {
     if (usageRatio >= config.thresholds.forceCompact) {
-      band = 'critical'
+      band = "critical";
     } else if (usageRatio >= config.thresholds.autoPrune) {
-      band = 'high'
+      band = "high";
     } else if (usageRatio >= config.thresholds.nudge) {
-      band = 'medium'
+      band = "medium";
     } else {
-      band = 'low'
+      band = "low";
     }
   }
 
-  const effectiveBand = getEffectivePressureBand(band)
+  const effectiveBand = getEffectivePressureBand(band);
 
   return {
     band,
     effectiveBand,
-    sampledAt: 'pre-prune',
+    sampledAt: "pre-prune",
     tokens,
     contextWindow,
     usageRatio,
     thresholds: { ...config.thresholds },
     meaning: describeEffectivePressureBand(band),
-    compactionPreferred: effectiveBand === 'critical',
-  }
+    compactionPreferred: effectiveBand === "critical",
+  };
 }
 
 export function refreshObservabilityState(
   state: DCPSessionState,
   config: DCPConfig,
   protectionPolicy?: DCPProtectionPolicy,
-  usage?: { tokens?: number | null; contextWindow?: number | null } | null
+  usage?: { tokens?: number | null; contextWindow?: number | null } | null,
 ): void {
   state.observability = createObservabilityState(
     config,
     protectionPolicy,
-    usage
-  )
+    usage,
+  );
 }
 
 export function recordStrategyPruned(
   state: DCPSessionState,
-  strategy: DCPStrategyName
+  strategy: DCPStrategyName,
 ): void {
-  state.observability.strategyDecisions[strategy].pruned++
+  state.observability.strategyDecisions[strategy].pruned++;
 }
 
 export function recordStrategySkip(
   state: DCPSessionState,
   strategy: DCPStrategyName,
-  reason: 'protected' | 'recent' | 'other',
-  subjectKey?: string
+  reason: "protected" | "recent" | "other",
+  subjectKey?: string,
 ): void {
-  const summary = state.observability.strategyDecisions[strategy]
+  const summary = state.observability.strategyDecisions[strategy];
 
-  if (reason === 'protected') {
-    summary.skippedProtected++
+  if (reason === "protected") {
+    summary.skippedProtected++;
 
     if (!subjectKey || !state.internal.protectedSkipKeys.has(subjectKey)) {
       if (subjectKey) {
-        state.internal.protectedSkipKeys.add(subjectKey)
+        state.internal.protectedSkipKeys.add(subjectKey);
       }
-      state.stats.protectedSkipCount++
+      state.stats.protectedSkipCount++;
     }
-    return
+    return;
   }
 
-  if (reason === 'recent') {
-    summary.skippedRecent++
-    return
+  if (reason === "recent") {
+    summary.skippedRecent++;
+    return;
   }
 
-  summary.skippedOther++
+  summary.skippedOther++;
 }
 
 export function buildStatusMessage(
   config: DCPConfig,
-  state: DCPSessionState
+  state: DCPSessionState,
 ): string {
-  const pressure = state.observability.pressure
-  const protection = state.observability.protection
-  const activation = state.observability.configActivation
-  const lines: string[] = []
+  const pressure = state.observability.pressure;
+  const protection = state.observability.protection;
+  const activation = state.observability.configActivation;
+  const lines: string[] = [];
 
-  lines.push('**DCP Status**: Enabled')
+  lines.push("**DCP Status**: Enabled");
   lines.push(
-    `- Mode: ${config.mode} (reported only, no extra policy branching yet)`
-  )
-  lines.push(`- Pressure: ${formatPressureLine(pressure)}`)
+    `- Mode: ${config.mode} (reported only, no extra policy branching yet)`,
+  );
+  lines.push(`- Pressure: ${formatPressureLine(pressure)}`);
   lines.push(
     `- Effective band: ${formatEffectiveBandLine(pressure)}; thresholds: ${formatThresholds(
-      config.thresholds
-    )}`
-  )
+      config.thresholds,
+    )}`,
+  );
   lines.push(
-    `- Protection windows: turns=${protection.turnProtection.enabled ? protection.turnProtection.turns : 'disabled'}, steps=${protection.stepProtection.active ? protection.stepProtection.steps : 'disabled'} (${protection.stepProtection.note}), protected tools=${protection.protectedToolsCount}, protectedFilePatterns=${protection.protectedFilePatterns.count} enforced, frontierPins=${protection.frontierPins.count}${formatFrontierReasonSuffix(protection.frontierPins.reasons)}`
-  )
+    `- Protection windows: turns=${protection.turnProtection.enabled ? protection.turnProtection.turns : "disabled"}, steps=${protection.stepProtection.active ? protection.stepProtection.steps : "disabled"} (${protection.stepProtection.note}), protected tools=${protection.protectedToolsCount}, protectedFilePatterns=${protection.protectedFilePatterns.count} enforced, frontierPins=${protection.frontierPins.count}${formatFrontierReasonSuffix(protection.frontierPins.reasons)}`,
+  );
   lines.push(
-    `- Config activation: active=${formatList(activation.active)}; ignored=${formatList(activation.ignored)}; experimental=${formatList(activation.experimental)}`
-  )
-  lines.push(`- Tokens Saved: ~${state.stats.tokensSavedEstimate}`)
+    `- Config activation: active=${formatList(activation.active)}; ignored=${formatList(activation.ignored)}; experimental=${formatList(activation.experimental)}`,
+  );
+  lines.push(`- Tokens Saved: ~${state.stats.tokensSavedEstimate}`);
   lines.push(
-    `- Items Pruned: ${JSON.stringify(state.stats.prunedItemsCount, null, 2)}`
-  )
-  lines.push(`- Protected Skips: ${state.stats.protectedSkipCount}`)
+    `- Items Pruned: ${JSON.stringify(state.stats.prunedItemsCount, null, 2)}`,
+  );
+  lines.push(`- Protected Skips: ${state.stats.protectedSkipCount}`);
 
-  return lines.join('\n')
+  return lines.join("\n");
 }
 
 export function buildDetailsMarkdown(
   config: DCPConfig,
-  state: DCPSessionState
+  state: DCPSessionState,
 ): string {
-  const pressure = state.observability.pressure
-  const protection = state.observability.protection
-  const activation = state.observability.configActivation
-  const lines: string[] = []
+  const pressure = state.observability.pressure;
+  const protection = state.observability.protection;
+  const activation = state.observability.configActivation;
+  const lines: string[] = [];
 
-  lines.push('# DCP Details')
-  lines.push('')
-  lines.push('## Runtime')
+  lines.push("# DCP Details");
+  lines.push("");
+  lines.push("## Runtime");
   lines.push(
-    `- Mode: \`${config.mode}\` (reported, no extra policy branching yet)`
-  )
-  lines.push(`- Pressure: ${formatPressureLine(pressure)}`)
-  lines.push(`- Effective band: ${formatEffectiveBandLine(pressure)}`)
-  lines.push(`- Thresholds: ${formatThresholds(config.thresholds)}`)
+    `- Mode: \`${config.mode}\` (reported, no extra policy branching yet)`,
+  );
+  lines.push(`- Pressure: ${formatPressureLine(pressure)}`);
+  lines.push(`- Effective band: ${formatEffectiveBandLine(pressure)}`);
+  lines.push(`- Thresholds: ${formatThresholds(config.thresholds)}`);
   lines.push(
-    `- Protection windows: turns=${protection.turnProtection.enabled ? protection.turnProtection.turns : 'disabled'}, steps=${protection.stepProtection.active ? protection.stepProtection.steps : 'disabled'} (${protection.stepProtection.note})`
-  )
-  lines.push(`- Protected tools: ${protection.protectedToolsCount}`)
+    `- Protection windows: turns=${protection.turnProtection.enabled ? protection.turnProtection.turns : "disabled"}, steps=${protection.stepProtection.active ? protection.stepProtection.steps : "disabled"} (${protection.stepProtection.note})`,
+  );
+  lines.push(`- Protected tools: ${protection.protectedToolsCount}`);
   lines.push(
-    `- protectedFilePatterns: ${protection.protectedFilePatterns.count} configured, enforced`
-  )
+    `- protectedFilePatterns: ${protection.protectedFilePatterns.count} configured, enforced`,
+  );
   lines.push(
-    `- Frontier pins: ${protection.frontierPins.count}${formatFrontierReasonSuffix(protection.frontierPins.reasons)}`
-  )
-  lines.push('')
-  lines.push('## Config Activation')
-  lines.push(`- Active: ${formatList(activation.active)}`)
-  lines.push(`- Ignored: ${formatList(activation.ignored)}`)
-  lines.push(`- Experimental: ${formatList(activation.experimental)}`)
-  lines.push('')
-  lines.push('## Debug Summary')
+    `- Frontier pins: ${protection.frontierPins.count}${formatFrontierReasonSuffix(protection.frontierPins.reasons)}`,
+  );
+  lines.push("");
+  lines.push("## Config Activation");
+  lines.push(`- Active: ${formatList(activation.active)}`);
+  lines.push(`- Ignored: ${formatList(activation.ignored)}`);
+  lines.push(`- Experimental: ${formatList(activation.experimental)}`);
+  lines.push("");
+  lines.push("## Debug Summary");
   lines.push(
-    `- Age buckets: ${formatAgeBuckets(state.observability.ageBuckets)}`
-  )
-  lines.push(`- Protected skips: ${state.stats.protectedSkipCount}`)
-  lines.push('- Strategy decisions:')
+    `- Age buckets: ${formatAgeBuckets(state.observability.ageBuckets)}`,
+  );
+  lines.push(`- Protected skips: ${state.stats.protectedSkipCount}`);
+  lines.push("- Strategy decisions:");
 
   for (const name of STRATEGY_NAMES) {
-    const summary = state.observability.strategyDecisions[name]
-    let line = `- \`${name}\`: ${summary.enabled ? 'enabled' : 'disabled'}; pruned ${summary.pruned}; skipped protected ${summary.skippedProtected}; skipped recent ${summary.skippedRecent}; skipped other ${summary.skippedOther}`
+    const summary = state.observability.strategyDecisions[name];
+    let line = `- \`${name}\`: ${summary.enabled ? "enabled" : "disabled"}; pruned ${summary.pruned}; skipped protected ${summary.skippedProtected}; skipped recent ${summary.skippedRecent}; skipped other ${summary.skippedOther}`;
     if (summary.note) {
-      line += `; ${summary.note}`
+      line += `; ${summary.note}`;
     }
-    lines.push(line)
+    lines.push(line);
   }
 
-  lines.push('')
-  lines.push('## Pinned Items')
+  lines.push("");
+  lines.push("## Pinned Items");
 
   if (state.observability.pinnedItems.length === 0) {
-    lines.push('No file/frontier pins in the latest transform.')
+    lines.push("No file/frontier pins in the latest transform.");
   } else {
     for (const item of state.observability.pinnedItems) {
       lines.push(
-        `- **${item.toolName}** [${formatPinnedAge(item)}]: \`${item.argsSummary}\` — ${item.reasons.join('; ')}`
-      )
+        `- **${item.toolName}** [${formatPinnedAge(item)}]: \`${item.argsSummary}\` — ${item.reasons.join("; ")}`,
+      );
     }
   }
 
-  lines.push('')
-  lines.push('## Pruned Items')
+  lines.push("");
+  lines.push("## Pruned Items");
 
   if (state.details.length === 0) {
-    lines.push('No items pruned in the latest transform.')
-    return lines.join('\n')
+    lines.push("No items pruned in the latest transform.");
+    return lines.join("\n");
   }
 
   const grouped = state.details.reduce(
     (acc, item) => {
-      if (!acc[item.strategy]) acc[item.strategy] = []
-      acc[item.strategy].push(item)
-      return acc
+      if (!acc[item.strategy]) acc[item.strategy] = [];
+      acc[item.strategy].push(item);
+      return acc;
     },
-    {} as Record<string, typeof state.details>
-  )
+    {} as Record<string, typeof state.details>,
+  );
 
-  lines.push(`~${state.stats.tokensSavedEstimate} tokens saved`)
-  lines.push('')
+  lines.push(`~${state.stats.tokensSavedEstimate} tokens saved`);
+  lines.push("");
 
   for (const [strategy, items] of Object.entries(grouped)) {
-    lines.push(`### ${strategy} (${items.length})`)
+    lines.push(`### ${strategy} (${items.length})`);
     for (const item of items) {
       const turnStr =
-        item.turnAge >= 0 ? `Turn ${item.turnAge}` : 'Assistant Action'
+        item.turnAge >= 0 ? `Turn ${item.turnAge}` : "Assistant Action";
       lines.push(
-        `- **${item.toolName}** [${turnStr}] (~${item.tokensSaved} tokens): \`${item.argsSummary}\``
-      )
+        `- **${item.toolName}** [${turnStr}] (~${item.tokensSaved} tokens): \`${item.argsSummary}\``,
+      );
     }
-    lines.push('')
+    lines.push("");
   }
 
-  return lines.join('\n')
+  return lines.join("\n");
 }
 
 function createStrategyDecisions(
   config?: DCPConfig,
-  pressure?: DCPPressureState
+  pressure?: DCPPressureState,
 ): Record<DCPStrategyName, DCPStrategyDecisionSummary> {
   return {
     deduplicate: createStrategyDecision(
-      'deduplicate',
+      "deduplicate",
       config,
       pressure,
-      'exact tool+args duplicates'
+      "exact tool+args duplicates",
     ),
     purgeErrors: createStrategyDecision(
-      'purgeErrors',
+      "purgeErrors",
       config,
       pressure,
       config
         ? `minTurnAge=${config.strategies.purgeErrors.minTurnAge}`
-        : undefined
+        : undefined,
     ),
     outputBodyReplace: createStrategyDecision(
-      'outputBodyReplace',
+      "outputBodyReplace",
       config,
       pressure,
       config
         ? `minChars=${config.strategies.outputBodyReplace.minChars}`
-        : undefined
+        : undefined,
     ),
     supersedeWrites: createStrategyDecision(
-      'supersedeWrites',
+      "supersedeWrites",
       config,
       pressure,
-      'later read can supersede older write args'
+      "later read can supersede older write args",
     ),
-  }
+  };
 }
 
 function createStrategyDecision(
   strategy: DCPStrategyName,
   config: DCPConfig | undefined,
   pressure: DCPPressureState | undefined,
-  baseNote?: string
+  baseNote?: string,
 ): DCPStrategyDecisionSummary {
   const enabledInConfig = config
     ? isStrategyEnabledInConfig(config, strategy)
-    : false
+    : false;
   const enabledByPressure = pressure
     ? isStrategyEnabledForPressure(strategy, pressure)
-    : true
-  const enabled = enabledInConfig && enabledByPressure
-  const noteParts: string[] = []
+    : true;
+  const enabled = enabledInConfig && enabledByPressure;
+  const noteParts: string[] = [];
 
   if (baseNote) {
-    noteParts.push(baseNote)
+    noteParts.push(baseNote);
   }
 
   if (config && pressure) {
-    const minimumBand = getStrategyMinimumBand(strategy)
+    const minimumBand = getStrategyMinimumBand(strategy);
     if (!enabledInConfig) {
-      noteParts.push('disabled in config')
+      noteParts.push("disabled in config");
     } else if (enabledByPressure) {
-      noteParts.push(`active at ${minimumBand}+ pressure`)
+      noteParts.push(`active at ${minimumBand}+ pressure`);
     } else {
       noteParts.push(
-        `gated until ${minimumBand} pressure (current ${pressure.effectiveBand})`
-      )
+        `gated until ${minimumBand} pressure (current ${pressure.effectiveBand})`,
+      );
     }
   }
 
@@ -392,61 +392,61 @@ function createStrategyDecision(
     skippedProtected: 0,
     skippedRecent: 0,
     skippedOther: 0,
-    note: noteParts.length > 0 ? noteParts.join('; ') : undefined,
-  }
+    note: noteParts.length > 0 ? noteParts.join("; ") : undefined,
+  };
 }
 
 function isStrategyEnabledInConfig(
   config: DCPConfig,
-  strategy: DCPStrategyName
+  strategy: DCPStrategyName,
 ): boolean {
   switch (strategy) {
-    case 'deduplicate':
-      return config.strategies.deduplicate.enabled
-    case 'purgeErrors':
-      return config.strategies.purgeErrors.enabled
-    case 'outputBodyReplace':
-      return config.strategies.outputBodyReplace.enabled
-    case 'supersedeWrites':
-      return config.strategies.supersedeWrites.enabled
+    case "deduplicate":
+      return config.strategies.deduplicate.enabled;
+    case "purgeErrors":
+      return config.strategies.purgeErrors.enabled;
+    case "outputBodyReplace":
+      return config.strategies.outputBodyReplace.enabled;
+    case "supersedeWrites":
+      return config.strategies.supersedeWrites.enabled;
   }
 }
 
 function describeConfigActivation(
-  config: DCPConfig
+  config: DCPConfig,
 ): DCPConfigActivationSummary {
-  const active = ['turnProtection', 'protectedTools', 'protectedFilePatterns']
-  const ignored: string[] = []
+  const active = ["turnProtection", "protectedTools", "protectedFilePatterns"];
+  const ignored: string[] = [];
 
   if (config.stepProtection.enabled && config.stepProtection.steps > 0) {
-    active.push('stepProtection')
+    active.push("stepProtection");
   } else {
-    ignored.push('stepProtection (disabled)')
+    ignored.push("stepProtection (disabled)");
   }
 
-  active.push('thresholds (pressure gates)')
+  active.push("thresholds (pressure gates)");
 
   return {
     active,
     ignored,
     experimental: [
-      `advanced.distillTool (${config.advanced.distillTool.enabled ? 'enabled but dormant' : 'disabled'})`,
-      `advanced.compressTool (${config.advanced.compressTool.enabled ? 'enabled but dormant' : 'disabled'})`,
-      `advanced.llmAutonomy (${config.advanced.llmAutonomy ? 'enabled but dormant' : 'disabled'})`,
+      `advanced.distillTool (${config.advanced.distillTool.enabled ? "enabled but dormant" : "disabled"})`,
+      `advanced.compressTool (${config.advanced.compressTool.enabled ? "enabled but dormant" : "disabled"})`,
+      `advanced.llmAutonomy (${config.advanced.llmAutonomy ? "enabled but dormant" : "disabled"})`,
     ],
-  }
+  };
 }
 
 function buildProtectionSummary(
   config: DCPConfig,
-  protectionPolicy?: DCPProtectionPolicy
-): DCPObservabilityState['protection'] {
+  protectionPolicy?: DCPProtectionPolicy,
+): DCPObservabilityState["protection"] {
   const stepProtectionActive =
-    config.stepProtection.enabled && config.stepProtection.steps > 0
-  const pinnedItems = protectionPolicy?.listPinnedItems() ?? []
+    config.stepProtection.enabled && config.stepProtection.steps > 0;
+  const pinnedItems = protectionPolicy?.listPinnedItems() ?? [];
   const frontierPinnedItems = pinnedItems.filter((item) =>
-    item.reasons.some(isFrontierReason)
-  )
+    item.reasons.some(isFrontierReason),
+  );
 
   return {
     turnProtection: {
@@ -458,8 +458,8 @@ function buildProtectionSummary(
       steps: config.stepProtection.steps,
       active: stepProtectionActive,
       note: stepProtectionActive
-        ? 'short current turns stay on turn protection; once a same-turn run grows past the turn window, the newest steps stay protected and recent prior turns still stay protected'
-        : 'disabled',
+        ? "short current turns stay on turn protection; once a same-turn run grows past the turn window, the newest steps stay protected and recent prior turns still stay protected"
+        : "disabled",
     },
     protectedToolsCount: config.protectedTools.length,
     protectedFilePatterns: {
@@ -470,27 +470,27 @@ function buildProtectionSummary(
       count: frontierPinnedItems.length,
       reasons: summarizeFrontierReasons(frontierPinnedItems),
     },
-  }
+  };
 }
 
 function computeAgeBuckets(
   config: DCPConfig,
-  protectionPolicy?: DCPProtectionPolicy
+  protectionPolicy?: DCPProtectionPolicy,
 ): DCPAgeBucketSummary {
-  const turnAges = protectionPolicy?.turnAges ?? []
-  const buckets: Record<string, number> = {}
-  let protectedMessages = 0
-  let staleMessages = 0
+  const turnAges = protectionPolicy?.turnAges ?? [];
+  const buckets: Record<string, number> = {};
+  let protectedMessages = 0;
+  let staleMessages = 0;
 
   for (let index = 0; index < turnAges.length; index++) {
-    const age = turnAges[index]
-    const bucket = getAgeBucketLabel(age, config)
-    buckets[bucket] = (buckets[bucket] ?? 0) + 1
+    const age = turnAges[index];
+    const bucket = getAgeBucketLabel(age, config);
+    buckets[bucket] = (buckets[bucket] ?? 0) + 1;
 
     if (protectionPolicy?.get(index).protected) {
-      protectedMessages++
+      protectedMessages++;
     } else {
-      staleMessages++
+      staleMessages++;
     }
   }
 
@@ -499,109 +499,109 @@ function computeAgeBuckets(
     protectedMessages,
     staleMessages,
     buckets,
-  }
+  };
 }
 
 function getAgeBucketLabel(age: number, config: DCPConfig): string {
   if (config.turnProtection.enabled && age >= config.turnProtection.turns) {
-    return `T${config.turnProtection.turns}+`
+    return `T${config.turnProtection.turns}+`;
   }
-  return `T${age}`
+  return `T${age}`;
 }
 
 function formatPressureLine(pressure: DCPPressureState): string {
-  const snapshotLabel = `${pressure.sampledAt} snapshot`
+  const snapshotLabel = `${pressure.sampledAt} snapshot`;
 
   if (
     pressure.tokens === null ||
     pressure.contextWindow === null ||
     pressure.usageRatio === null
   ) {
-    return `${pressure.band} (${snapshotLabel}; ctx.getContextUsage unavailable)`
+    return `${pressure.band} (${snapshotLabel}; ctx.getContextUsage unavailable)`;
   }
 
-  return `${pressure.band} (${snapshotLabel}; ~${pressure.tokens.toLocaleString()} / ${pressure.contextWindow.toLocaleString()} tokens, ${formatUsagePercent(pressure.usageRatio)} used)`
+  return `${pressure.band} (${snapshotLabel}; ~${pressure.tokens.toLocaleString()} / ${pressure.contextWindow.toLocaleString()} tokens, ${formatUsagePercent(pressure.usageRatio)} used)`;
 }
 
 function formatEffectiveBandLine(pressure: DCPPressureState): string {
-  return `${pressure.effectiveBand} (${pressure.meaning})`
+  return `${pressure.effectiveBand} (${pressure.meaning})`;
 }
 
-function formatThresholds(thresholds: DCPConfig['thresholds']): string {
-  return `nudge ${formatThresholdPercent(thresholds.nudge)}, auto-prune ${formatThresholdPercent(thresholds.autoPrune)}, force-compact ${formatThresholdPercent(thresholds.forceCompact)}`
+function formatThresholds(thresholds: DCPConfig["thresholds"]): string {
+  return `nudge ${formatThresholdPercent(thresholds.nudge)}, auto-prune ${formatThresholdPercent(thresholds.autoPrune)}, force-compact ${formatThresholdPercent(thresholds.forceCompact)}`;
 }
 
 function formatThresholdPercent(value: number): string {
-  const percent = value * 100
-  return `${Number.isInteger(percent) ? percent.toFixed(0) : percent.toFixed(1)}%`
+  const percent = value * 100;
+  return `${Number.isInteger(percent) ? percent.toFixed(0) : percent.toFixed(1)}%`;
 }
 
 function formatUsagePercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`
+  return `${(value * 100).toFixed(1)}%`;
 }
 
 function formatAgeBuckets(summary: DCPAgeBucketSummary): string {
   const entries = Object.entries(summary.buckets)
     .sort(([left], [right]) =>
-      left.localeCompare(right, undefined, { numeric: true })
+      left.localeCompare(right, undefined, { numeric: true }),
     )
-    .map(([bucket, count]) => `\`${bucket}=${count}\``)
+    .map(([bucket, count]) => `\`${bucket}=${count}\``);
 
   if (entries.length === 0) {
-    return '(none)'
+    return "(none)";
   }
 
-  entries.push(`protected=${summary.protectedMessages}`)
-  entries.push(`stale=${summary.staleMessages}`)
+  entries.push(`protected=${summary.protectedMessages}`);
+  entries.push(`stale=${summary.staleMessages}`);
 
-  return entries.join(', ')
+  return entries.join(", ");
 }
 
 function formatList(items: string[]): string {
-  return items.length > 0 ? items.join(', ') : '(none)'
+  return items.length > 0 ? items.join(", ") : "(none)";
 }
 
 function formatFrontierReasonSuffix(reasons: Record<string, number>): string {
   const entries = Object.entries(reasons)
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([reason, count]) => `${reason}=${count}`)
+    .map(([reason, count]) => `${reason}=${count}`);
 
-  return entries.length > 0 ? ` (${entries.join(', ')})` : ''
+  return entries.length > 0 ? ` (${entries.join(", ")})` : "";
 }
 
 function formatPinnedAge(item: DCPPinnedItemDetail): string {
   if (item.stepAge >= 0) {
-    return `Turn ${item.turnAge}, Step ${item.stepAge}`
+    return `Turn ${item.turnAge}, Step ${item.stepAge}`;
   }
 
   if (item.turnAge >= 0) {
-    return `Turn ${item.turnAge}`
+    return `Turn ${item.turnAge}`;
   }
 
-  return 'Assistant Action'
+  return "Assistant Action";
 }
 
 function summarizeFrontierReasons(
-  items: DCPPinnedItemDetail[]
+  items: DCPPinnedItemDetail[],
 ): Record<string, number> {
-  const summary: Record<string, number> = {}
+  const summary: Record<string, number> = {};
 
   for (const item of items) {
     for (const reason of item.reasons) {
       if (!isFrontierReason(reason)) {
-        continue
+        continue;
       }
-      summary[reason] = (summary[reason] ?? 0) + 1
+      summary[reason] = (summary[reason] ?? 0) + 1;
     }
   }
 
-  return summary
+  return summary;
 }
 
 function isFrontierReason(reason: string): boolean {
   return (
-    !reason.startsWith('protected file pattern') &&
-    !reason.startsWith('protected tool') &&
-    reason !== 'path normalization ambiguous; kept for safety'
-  )
+    !reason.startsWith("protected file pattern") &&
+    !reason.startsWith("protected tool") &&
+    reason !== "path normalization ambiguous; kept for safety"
+  );
 }

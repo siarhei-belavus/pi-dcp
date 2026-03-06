@@ -1,26 +1,26 @@
-import { expect, test } from 'bun:test'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import type { AgentMessage } from '@mariozechner/pi-agent-core'
+import { expect, test } from "bun:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import {
   extractEmbeddedSubagentMessages,
   extractSessionMessages,
   formatReplaySummary,
   parseSessionJsonl,
   replaySession,
-} from '../session-replay'
+} from "../session-replay";
 
 function makeTempSessionFile(name: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'dcp-session-replay-'))
-  const path = join(dir, name)
-  writeFileSync(path, SESSION_TEXT)
-  return path
+  const dir = mkdtempSync(join(tmpdir(), "dcp-session-replay-"));
+  const path = join(dir, name);
+  writeFileSync(path, SESSION_TEXT);
+  return path;
 }
 
 function makeTempReplayConfig(name: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'dcp-session-replay-config-'))
-  const path = join(dir, name)
+  const dir = mkdtempSync(join(tmpdir(), "dcp-session-replay-config-"));
+  const path = join(dir, name);
   writeFileSync(
     path,
     JSON.stringify({
@@ -29,93 +29,93 @@ function makeTempReplayConfig(name: string): string {
       strategies: {
         outputBodyReplace: { enabled: true, minChars: 10 },
       },
-    })
-  )
-  return path
+    }),
+  );
+  return path;
 }
 
 const SESSION_TEXT = [
   JSON.stringify({
-    type: 'message',
-    id: 'user-1',
+    type: "message",
+    id: "user-1",
     message: {
-      role: 'user',
-      content: 'inspect the repo',
+      role: "user",
+      content: "inspect the repo",
       timestamp: 1,
     },
   }),
   JSON.stringify({
-    type: 'message',
-    id: 'assistant-1',
+    type: "message",
+    id: "assistant-1",
     message: {
-      role: 'assistant',
+      role: "assistant",
       content: [
         {
-          type: 'toolCall',
-          id: 'read-1',
-          name: 'read',
-          arguments: { path: 'src/index.ts' },
+          type: "toolCall",
+          id: "read-1",
+          name: "read",
+          arguments: { path: "src/index.ts" },
         },
       ],
-      api: 'test',
-      provider: 'test',
-      model: 'test',
+      api: "test",
+      provider: "test",
+      model: "test",
       usage: {} as any,
-      stopReason: 'toolUse',
+      stopReason: "toolUse",
       timestamp: 2,
     },
   }),
   JSON.stringify({
-    type: 'message',
-    id: 'tool-1',
+    type: "message",
+    id: "tool-1",
     message: {
-      role: 'toolResult',
-      toolCallId: 'read-1',
-      toolName: 'read',
-      content: [{ type: 'text', text: 'A'.repeat(1600) }],
+      role: "toolResult",
+      toolCallId: "read-1",
+      toolName: "read",
+      content: [{ type: "text", text: "A".repeat(1600) }],
       isError: false,
       timestamp: 3,
     },
   }),
   JSON.stringify({
-    type: 'message',
-    id: 'subagent-wrapper',
+    type: "message",
+    id: "subagent-wrapper",
     message: {
-      role: 'toolResult',
-      toolName: 'subagent',
-      toolCallId: 'subagent-1',
-      content: [{ type: 'text', text: '(no output)' }],
+      role: "toolResult",
+      toolName: "subagent",
+      toolCallId: "subagent-1",
+      content: [{ type: "text", text: "(no output)" }],
       details: {
         results: [
           {
             messages: [
               {
-                role: 'user',
-                content: [{ type: 'text', text: 'review the package' }],
+                role: "user",
+                content: [{ type: "text", text: "review the package" }],
                 timestamp: 10,
               },
               {
-                role: 'assistant',
+                role: "assistant",
                 content: [
                   {
-                    type: 'toolCall',
-                    id: 'embedded-read',
-                    name: 'read',
-                    arguments: { path: 'README.md' },
+                    type: "toolCall",
+                    id: "embedded-read",
+                    name: "read",
+                    arguments: { path: "README.md" },
                   },
                 ],
-                api: 'test',
-                provider: 'test',
-                model: 'test',
+                api: "test",
+                provider: "test",
+                model: "test",
                 usage: {} as any,
-                stopReason: 'toolUse',
+                stopReason: "toolUse",
                 timestamp: 11,
               },
               {
-                role: 'toolResult',
-                toolCallId: 'embedded-read',
-                toolName: 'read',
-                content: [{ type: 'text', text: 'B'.repeat(1800) }],
+                role: "toolResult",
+                toolCallId: "embedded-read",
+                toolName: "read",
+                content: [{ type: "text", text: "B".repeat(1800) }],
                 isError: false,
                 timestamp: 12,
               },
@@ -126,84 +126,84 @@ const SESSION_TEXT = [
       timestamp: 13,
     },
   }),
-].join('\n')
+].join("\n");
 
-test('extractSessionMessages respects a JSONL head line', () => {
-  const entries = parseSessionJsonl(SESSION_TEXT)
-  const extracted = extractSessionMessages(entries, { headLine: 3 })
+test("extractSessionMessages respects a JSONL head line", () => {
+  const entries = parseSessionJsonl(SESSION_TEXT);
+  const extracted = extractSessionMessages(entries, { headLine: 3 });
 
-  expect(extracted.selectedEntryLine).toBe(3)
-  expect(extracted.messages).toHaveLength(3)
-  expect(extracted.messages.at(-1)?.role).toBe('toolResult')
-})
+  expect(extracted.selectedEntryLine).toBe(3);
+  expect(extracted.messages).toHaveLength(3);
+  expect(extracted.messages.at(-1)?.role).toBe("toolResult");
+});
 
-test('extractEmbeddedSubagentMessages returns embedded child messages', () => {
-  const entries = parseSessionJsonl(SESSION_TEXT)
-  const extracted = extractEmbeddedSubagentMessages(entries, 4, 0)
+test("extractEmbeddedSubagentMessages returns embedded child messages", () => {
+  const entries = parseSessionJsonl(SESSION_TEXT);
+  const extracted = extractEmbeddedSubagentMessages(entries, 4, 0);
 
-  expect(extracted.selectedEntryLine).toBe(4)
-  expect(extracted.messages).toHaveLength(3)
-  expect(extracted.messages[1].role).toBe('assistant')
-  expect((extracted.messages[2] as any).toolName).toBe('read')
-})
+  expect(extracted.selectedEntryLine).toBe(4);
+  expect(extracted.messages).toHaveLength(3);
+  expect(extracted.messages[1].role).toBe("assistant");
+  expect((extracted.messages[2] as any).toolName).toBe("read");
+});
 
-test('replaySession applies real DCP transforms to a normal session head', () => {
-  const tempPath = makeTempSessionFile('session.jsonl')
-  const configPath = makeTempReplayConfig('dcp.json')
+test("replaySession applies real DCP transforms to a normal session head", () => {
+  const tempPath = makeTempSessionFile("session.jsonl");
+  const configPath = makeTempReplayConfig("dcp.json");
 
   const summary = replaySession({
     sessionPath: tempPath,
     configPath,
     headLine: 3,
     pressure: {
-      band: 'low',
+      band: "low",
     },
-  })
+  });
 
-  expect(summary.source.kind).toBe('session')
-  expect(summary.counts.originalMessages).toBe(3)
-  expect(summary.counts.tokensSavedEstimate).toBeGreaterThan(0)
+  expect(summary.source.kind).toBe("session");
+  expect(summary.counts.originalMessages).toBe(3);
+  expect(summary.counts.tokensSavedEstimate).toBeGreaterThan(0);
   expect(
-    summary.prunedItems.some((item) => item.strategy === 'outputBodyReplace')
-  ).toBe(true)
+    summary.prunedItems.some((item) => item.strategy === "outputBodyReplace"),
+  ).toBe(true);
   expect((summary.transformedMessages[2] as any).content[0].text).toContain(
-    '[DCP: Large output'
-  )
-})
+    "[DCP: Large output",
+  );
+});
 
-test('replaySession can replay an embedded subagent transcript', () => {
-  const tempPath = makeTempSessionFile('subagent.jsonl')
-  const configPath = makeTempReplayConfig('dcp.json')
+test("replaySession can replay an embedded subagent transcript", () => {
+  const tempPath = makeTempSessionFile("subagent.jsonl");
+  const configPath = makeTempReplayConfig("dcp.json");
 
   const summary = replaySession({
     sessionPath: tempPath,
     configPath,
     subagentLine: 4,
     pressure: {
-      band: 'low',
+      band: "low",
     },
-  })
+  });
 
-  expect(summary.source.kind).toBe('embedded-subagent')
-  expect(summary.counts.originalMessages).toBe(3)
-  expect(summary.prunedItems.some((item) => item.toolName === 'read')).toBe(
-    true
-  )
-})
+  expect(summary.source.kind).toBe("embedded-subagent");
+  expect(summary.counts.originalMessages).toBe(3);
+  expect(summary.prunedItems.some((item) => item.toolName === "read")).toBe(
+    true,
+  );
+});
 
-test('formatReplaySummary renders readable markdown headings', () => {
-  const tempPath = makeTempSessionFile('format.jsonl')
+test("formatReplaySummary renders readable markdown headings", () => {
+  const tempPath = makeTempSessionFile("format.jsonl");
 
   const summary = replaySession({
     sessionPath: tempPath,
     headLine: 3,
     pressure: {
-      band: 'high',
+      band: "high",
     },
-  })
+  });
 
-  const markdown = formatReplaySummary(summary)
-  expect(markdown).toContain('# DCP Session Replay')
-  expect(markdown).toContain('## Pruned Items')
-  expect(markdown).toContain('Pressure: high')
-})
+  const markdown = formatReplaySummary(summary);
+  expect(markdown).toContain("# DCP Session Replay");
+  expect(markdown).toContain("## Pruned Items");
+  expect(markdown).toContain("Pressure: high");
+});
