@@ -126,6 +126,51 @@ test("applyOutputBodyReplace keeps small outputs", () => {
   expect(state.stats.prunedItemsCount.outputBodyReplace).toBe(0);
 });
 
+test("applyOutputBodyReplace preserves protected file pattern outputs", () => {
+  const messages: AgentMessage[] = [
+    { role: "user", content: "t1", timestamp: 1 } as any,
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "call_1",
+          name: "read",
+          arguments: { path: ".plans/task/PLAN.md" },
+        },
+      ],
+      api: "",
+      provider: "",
+      model: "",
+      usage: {} as any,
+      stopReason: "stop",
+      timestamp: 2,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "call_1",
+      toolName: "read",
+      content: [{ type: "text", text: "This is a massive file content!" }],
+      isError: false,
+      timestamp: 3,
+    },
+    { role: "user", content: "t2", timestamp: 4 } as any,
+    { role: "user", content: "t3", timestamp: 5 } as any,
+  ];
+
+  const config = { ...mockConfig(), protectedFilePatterns: ["**/PLAN.md"] };
+  const state = createSessionState();
+  const index = buildToolCallIndex(messages);
+  const policy = createProtectionPolicy(messages, config);
+
+  applyOutputBodyReplace(messages, config, state, index, policy);
+
+  expect((messages[2] as any).content[0].text).toBe(
+    "This is a massive file content!",
+  );
+  expect(state.stats.prunedItemsCount.outputBodyReplace).toBe(0);
+});
+
 test("applyOutputBodyReplace keeps recent large outputs", () => {
   const messages: AgentMessage[] = [
     { role: "user", content: "t1", timestamp: 1 } as any, // age 0

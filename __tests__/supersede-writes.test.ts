@@ -101,6 +101,79 @@ test("applySupersedeWrites prunes write arguments if superseded by later read", 
   expect(state.stats.prunedItemsCount.supersedeWrites).toBe(1);
 });
 
+test("applySupersedeWrites preserves protected file pattern writes", () => {
+  const messages: AgentMessage[] = [
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "write_1",
+          name: "write",
+          arguments: {
+            path: ".plans/task/PLAN.md",
+            content: "task plan body that should remain intact",
+          },
+        },
+      ],
+      api: "",
+      provider: "",
+      model: "",
+      usage: {} as any,
+      stopReason: "stop",
+      timestamp: 1,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "write_1",
+      toolName: "write",
+      content: [],
+      isError: false,
+      timestamp: 2,
+    },
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "read_1",
+          name: "read",
+          arguments: { path: ".plans/task/PLAN.md" },
+        },
+      ],
+      api: "",
+      provider: "",
+      model: "",
+      usage: {} as any,
+      stopReason: "stop",
+      timestamp: 3,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "read_1",
+      toolName: "read",
+      content: [],
+      isError: false,
+      timestamp: 4,
+    },
+  ];
+
+  const config = {
+    ...mockConfig(),
+    protectedFilePatterns: ["**/PLAN.md"],
+  };
+  const state = createSessionState();
+  const index = buildToolCallIndex(messages);
+  const policy = createProtectionPolicy(messages, config);
+
+  applySupersedeWrites(messages, config, state, index, policy);
+
+  expect((messages[0] as any).content[0].arguments.content).toBe(
+    "task plan body that should remain intact",
+  );
+  expect(state.stats.prunedItemsCount.supersedeWrites).toBe(0);
+});
+
 test("applySupersedeWrites does NOT prune writes if no later read exists", () => {
   const messages: AgentMessage[] = [
     {

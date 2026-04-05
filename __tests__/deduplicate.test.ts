@@ -220,6 +220,80 @@ test("applyDeduplicate prunes older duplicate non-protected tools", () => {
   expect(state.stats.prunedItemsCount.deduplicate).toBe(1);
 });
 
+test("applyDeduplicate does NOT prune protected file patterns", () => {
+  const messages: AgentMessage[] = [
+    { role: "user", content: "t1", timestamp: 1 } as any,
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "call_1",
+          name: "read",
+          arguments: { path: ".plans/task/PLAN.md" },
+        },
+      ],
+      api: "t",
+      provider: "t",
+      model: "t",
+      usage: {} as any,
+      stopReason: "stop",
+      timestamp: 2,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "call_1",
+      toolName: "read",
+      content: [{ type: "text", text: "old plan" }],
+      isError: false,
+      timestamp: 3,
+    },
+    { role: "user", content: "t2", timestamp: 4 } as any,
+    { role: "user", content: "t3", timestamp: 5 } as any,
+    { role: "user", content: "t4", timestamp: 6 } as any,
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "call_2",
+          name: "read",
+          arguments: { path: ".plans/task/PLAN.md" },
+        },
+      ],
+      api: "t",
+      provider: "t",
+      model: "t",
+      usage: {} as any,
+      stopReason: "stop",
+      timestamp: 7,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "call_2",
+      toolName: "read",
+      content: [{ type: "text", text: "new plan" }],
+      isError: false,
+      timestamp: 8,
+    },
+  ];
+
+  const config = { ...mockConfig(), protectedFilePatterns: ["**/PLAN.md"] };
+  const state = createSessionState();
+  const index = buildToolCallIndex(messages);
+  const policy = createProtectionPolicy(messages, config);
+
+  applyDeduplicate(messages, config, state, index, policy);
+
+  expect((messages[2] as any).content).toEqual([
+    { type: "text", text: "old plan" },
+  ]);
+  expect((messages[7] as any).content).toEqual([
+    { type: "text", text: "new plan" },
+  ]);
+  expect(state.stats.prunedItemsCount.deduplicate).toBe(0);
+});
+
 test("applyDeduplicate does NOT prune protected tools", () => {
   const messages: AgentMessage[] = [
     { role: "user", content: "t1", timestamp: 1 } as any,

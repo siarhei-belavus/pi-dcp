@@ -2,6 +2,7 @@ import { test, expect } from "bun:test";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { DCPConfig } from "../types";
 import { createProtectionPolicy } from "../protection";
+import { buildToolCallIndex } from "../utils";
 import { createSessionState } from "../state";
 import { applyPurgeErrors } from "../strategies/purge-errors";
 
@@ -118,6 +119,49 @@ test("applyPurgeErrors preserves recent errors", () => {
   applyPurgeErrors(messages, config, state, policy);
 
   expect((messages[1] as any).content[0].text).toBe("Error: recent");
+  expect(state.stats.prunedItemsCount.purgeErrors).toBe(0);
+});
+
+test("applyPurgeErrors preserves protected file pattern errors", () => {
+  const messages: AgentMessage[] = [
+    { role: "user", content: "t1", timestamp: 1 } as any,
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "call_1",
+          name: "read",
+          arguments: { path: ".plans/task/PLAN.md" },
+        },
+      ],
+      api: "",
+      provider: "",
+      model: "",
+      usage: {} as any,
+      stopReason: "stop",
+      timestamp: 2,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "call_1",
+      toolName: "read",
+      content: [{ type: "text", text: "Error: packet missing" }],
+      isError: true,
+      timestamp: 3,
+    },
+    { role: "user", content: "t2", timestamp: 4 } as any,
+    { role: "user", content: "t3", timestamp: 5 } as any,
+    { role: "user", content: "t4", timestamp: 6 } as any,
+  ];
+
+  const config = mockConfig({ protectedFilePatterns: ["**/PLAN.md"] });
+  const state = createSessionState();
+  const policy = createProtectionPolicy(messages, config);
+
+  applyPurgeErrors(messages, config, state, policy);
+
+  expect((messages[2] as any).content[0].text).toBe("Error: packet missing");
   expect(state.stats.prunedItemsCount.purgeErrors).toBe(0);
 });
 

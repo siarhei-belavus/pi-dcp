@@ -28,6 +28,9 @@
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": ">=0.54.0 <1"
   },
+  "dependencies": {
+    "minimatch": "^10.1.1"
+  },
   "devDependencies": {
     "@mariozechner/pi-agent-core": "^0.54.0",
     "@types/node": "^25.3.0",
